@@ -1,15 +1,16 @@
 <?php
 
 include (__DIR__ . '/vendor/autoload.php');
+use Service\ConfigProvider;
+use Service\QuizClient;
+use Service\QuizRegisterUser;
 
-$access_token = 'your_access_token_here';
-$verify_token = 'TOKEN';
-$appId = 'your_app_id_here';
-$appSecret = 'your_app_secret_here';
+$configProvider = new ConfigProvider(__DIR__ . '/config.json');
+$requestQuestion = new QuizClient(1);
 
 if(isset($_REQUEST['hub_challenge'])) {
     $challenge = $_REQUEST['hub_challenge'];
-    if ($_REQUEST['hub_verify_token'] === $verify_token) {
+    if ($_REQUEST['hub_verify_token'] === $configProvider->getParameter('verify_token')) {
         echo $challenge; die();
     }
 }
@@ -21,11 +22,21 @@ if ($input === null) {
 }
 
 $message = $input['entry'][0]['messaging'][0]['message']['text'];
+
+$question = $requestQuestion->getQuestion();
+$question = $question['results'][0]['question'];
+$correctAnswer = $question['results'][0]['correct_answer'];
+
 $sender = $input['entry'][0]['messaging'][0]['sender']['id'];
 
+
+$registerUser = new QuizRegisterUser($sender, $question);
+$registerUser->registerUser();
+
+
 $fb = new \Facebook\Facebook([
-    'app_id' => $appId,
-    'app_secret' => $appSecret,
+    'app_id' => $configProvider->getParameter('appId'),
+    'app_secret' => $configProvider->getParameter('appSecret'),
 ]);
 
 $data = [
@@ -34,8 +45,11 @@ $data = [
         'id' => $sender,
     ],
     'message' => [
-        'text' => 'You wrote: ' . $message,
+        'text' => $question,
     ]
 ];
 
-$response = $fb->post('/me/messages', $data, $access_token);
+$response = $fb->post(
+  '/me/messages',
+  $data,
+  $configProvider->getParameter('access_token'));
